@@ -4,11 +4,16 @@ from batch import BatchClass
 from stream import StreamClass
 
 if __name__ == "__main__":
-    stream_dir = ""
-    master_dir = ""
-    db = ""
+    stream_dir = "HDFS/new"
+    master_dir = "HDFS/master"
+    db = "kschool"
 
     sc = SparkContext(appName="Lambda")
 
-    batch = BatchClass(master_dir, stream_dir, db, sc)
-    stream = StreamClass(stream_dir, db, sc, 5)
+    batch = BatchClass(sc)
+    stream = StreamClass(sc, 5)
+    batch.start()
+    stream.start()
+
+    if not batch.isAlive():
+        batch.start()

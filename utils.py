@@ -15,7 +15,7 @@ def copy(src, dest):
             print('Directory not copied. Error: %s' % e)
 
 
-def save_to_mongo(rdd, collection):
+def save_to_mongo(rdd, database, collection):
     try:
         # Get the singleton instance of SparkSession
         spark = get_spark_session_instance(rdd.context.getConf())
@@ -26,7 +26,7 @@ def save_to_mongo(rdd, collection):
 
         words_data_frame.write.format("com.mongodb.spark.sql")\
             .mode("overwrite")\
-            .option("spark.mongodb.output.uri", "mongodb://localhost:27017/kschool." + collection)\
+            .option("spark.mongodb.output.uri", "mongodb://localhost:27017/" + database + "." + collection)\
             .save()
     except BaseException:
         print sys.exc_info()

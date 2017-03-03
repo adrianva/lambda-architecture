@@ -5,9 +5,13 @@ import utils
 
 
 class BatchClass(threading.Thread):
+    def __init__(self, spark_context=None):
+        super(BatchClass, self).__init__()
+        self.spark_context = spark_context
+
     def run(self):
-        print "Starting: " + self.name
-        # TODO Mover ficheros
+        print "Starting Batch Layer: " + self.name
+        batch_processing(self.spark_context)
 
 
 def get_word_count(texts):
@@ -17,14 +21,16 @@ def get_word_count(texts):
         .reduceByKey(lambda a, b: a + b)
 
 
-if __name__ == "__main__":
-    spark = SparkSession.builder.appName("Batch Layer").getOrCreate()
-
-    sc = spark.sparkContext
-    matches_without_goals = sc.accumulator(0)
-
+def batch_processing(sc):
     utils.copy("HDFS/new", "HDFS/master")
 
     texts = sc.textFile("HDFS/master/*/*")
     word_count = get_word_count(texts)
-    utils.save_to_mongo(word_count, collection="batch_view")
+    utils.save_to_mongo(word_count, database="kschool", collection="batch_view")
+
+
+if __name__ == "__main__":
+    spark = SparkSession.builder.appName("Batch Layer").getOrCreate()
+
+    sc = spark.sparkContext
+    batch_processing(sc)
