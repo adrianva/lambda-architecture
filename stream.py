@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
     kvs = KafkaUtils.createDirectStream(ssc, topics, {"metadata.broker.list": brokers})
     # Kafka emits tuples, so we need to acces to the second element
-    lines = kvs.map(lambda line: line[1]).cache()
+    lines = kvs.map(lambda line: line[1])
 
     # save to HDFS
     lines.foreachRDD(save_stream)
