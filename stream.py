@@ -7,6 +7,9 @@ from pyspark import SparkContext
 from pyspark.streaming import StreamingContext
 from pyspark.streaming.kafka import KafkaUtils
 from pyspark.sql import SQLContext, Row, SparkSession
+from pyspark.ml.feature import RegexTokenizer
+
+import utils
 
 
 class StreamClass(threading.Thread):
@@ -46,18 +49,27 @@ def compute_word_count(time, rdd):
     print("========= %s =========" % str(time))
     try:
         # Get the singleton instance of SparkSession
-        spark = get_spark_session_instance(rdd.context.getConf())
+        spark = utils.get_spark_session_instance(rdd.context.getConf())
+        tokenizer = RegexTokenizer(inputCol="text", outputCol="words", pattern="\\W")
 
         # Convert RDD[String] to RDD[Row] to DataFrame
-        row_rdd = rdd.map(lambda word: Row(word=word))
-        words_data_frame = spark.createDataFrame(row_rdd)
+        row_rdd = rdd.map(lambda line: Row(text=line))
+        df = spark.createDataFrame(row_rdd)
+
+        tokens_rdd = tokenizer.transform(df).head()
+        words_data_frame = spark.createDataFrame([tokens_rdd])
 
         # Creates a temporary view using the DataFrame.
-        words_data_frame.createOrReplaceTempView("words")
+        words_data_frame.createOrReplaceTempView("text")
 
         # Do word count on table using SQL and print it
-        word_count_data_frame = \
-            spark.sql("select word, count(*) as count from words group by word")
+        word_count_data_frame = spark.sql(
+            "select word, count(*) as count "
+            "from ("
+            "select explode(words) as word from text"
+            ") words "
+            "group by word"
+        )
 
         word_count_data_frame.write.format("com.mongodb.spark.sql") \
             .mode("overwrite")\
@@ -70,15 +82,6 @@ def compute_word_count(time, rdd):
             .save()
     except BaseException:
         print sys.exc_info()
-
-
-def get_spark_session_instance(spark_conf):
-    if 'sparkSessionSingletonInstance' not in globals():
-        globals()['sparkSessionSingletonInstance'] = SparkSession\
-            .builder\
-            .config(conf=spark_conf)\
-            .getOrCreate()
-    return globals()['sparkSessionSingletonInstance']
 
 
 if __name__ == "__main__":
@@ -97,9 +100,10 @@ if __name__ == "__main__":
 
     # save to HDFS
     lines.foreachRDD(save_stream)
+    lines.foreachRDD(compute_word_count)
 
-    words = lines.flatMap(lambda line: line.split(" "))
-    words.foreachRDD(compute_word_count)
+    #words = lines.flatMap(lambda line: line.split(" "))
+    #words.foreachRDD(compute_word_count)
 
     ssc.start()
     ssc.awaitTermination()
