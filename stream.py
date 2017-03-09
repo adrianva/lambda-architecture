@@ -6,10 +6,10 @@ import threading
 from pyspark import SparkContext
 from pyspark.streaming import StreamingContext
 from pyspark.streaming.kafka import KafkaUtils
-from pyspark.sql import SQLContext, Row, SparkSession
+from pyspark.sql import SQLContext, Row
 from pyspark.ml.feature import RegexTokenizer
 
-import utils
+from pymongo import MongoClient
 
 
 class StreamClass(threading.Thread):
@@ -34,8 +34,9 @@ class StreamClass(threading.Thread):
         # save to HDFS
         lines.foreachRDD(save_stream)
 
-        words = lines.flatMap(lambda line: line.split(" "))
-        words.foreachRDD(compute_word_count)
+        words = get_words(lines)
+        word_count = words.map(lambda word: (word, 1)).reduceByKey(lambda a, b: a + b)
+        word_count.foreachRDD(lambda rdd: rdd.foreachPartition(save_to_mongo))
 
         self.streaming_context.start()
         self.streaming_context.awaitTermination()
@@ -45,43 +46,30 @@ def save_stream(rdd):
     rdd.saveAsTextFile("HDFS/new/" + datetime.datetime.now().strftime("%H%M%S"))
 
 
-def compute_word_count(time, rdd):
+def get_words(lines):
+    words = lines.flatMap(lambda line: line.split())
+    return words
+
+
+def word_tokenize(line):
+    import nltk
+    return nltk.word_tokenize(line)
+
+
+def save_words(time, rdd):
     print("========= %s =========" % str(time))
     try:
-        # Get the singleton instance of SparkSession
-        spark = utils.get_spark_session_instance(rdd.context.getConf())
-        tokenizer = RegexTokenizer(inputCol="text", outputCol="words", pattern="\\W")
-
-        # Convert RDD[String] to RDD[Row] to DataFrame
-        row_rdd = rdd.map(lambda line: Row(text=line))
-        df = spark.createDataFrame(row_rdd)
-
-        tokens_rdd = tokenizer.transform(df).head()
-        words_data_frame = spark.createDataFrame([tokens_rdd])
-
-        # Creates a temporary view using the DataFrame.
-        words_data_frame.createOrReplaceTempView("text")
-
-        # Do word count on table using SQL and print it
-        word_count_data_frame = spark.sql(
-            "select word, count(*) as count "
-            "from ("
-            "select explode(words) as word from text"
-            ") words "
-            "group by word"
-        )
-
-        word_count_data_frame.write.format("com.mongodb.spark.sql") \
-            .mode("overwrite")\
-            .option("spark.mongodb.output.uri", "mongodb://localhost:27017/kschool.rt_view1") \
-            .save()
-
-        word_count_data_frame.write.format("com.mongodb.spark.sql") \
-            .mode("overwrite") \
-            .option("spark.mongodb.output.uri", "mongodb://localhost:27017/kschool.rt_view2") \
-            .save()
+        rdd.map(lambda word: save_to_mongo(word[0]))
     except BaseException:
         print sys.exc_info()
+
+
+def save_to_mongo(iter):
+    client = MongoClient('mongodb://localhost:27017/')
+    db = client.kschool
+
+    for record in iter:
+        saved_word = db.rt_view1.insert_one({"word": record[0], "count": 1})
 
 
 if __name__ == "__main__":
@@ -96,14 +84,14 @@ if __name__ == "__main__":
 
     kvs = KafkaUtils.createDirectStream(ssc, topics, {"metadata.broker.list": brokers})
     # Kafka emits tuples, so we need to acces to the second element
-    lines = kvs.map(lambda line: line[1])
+    lines = kvs.map(lambda line: line[1]).cache()
 
     # save to HDFS
     lines.foreachRDD(save_stream)
-    lines.foreachRDD(compute_word_count)
 
-    #words = lines.flatMap(lambda line: line.split(" "))
-    #words.foreachRDD(compute_word_count)
+    words = get_words(lines)
+    word_count = words.map(lambda word: (word, 1)).reduceByKey(lambda a, b: a + b)
+    word_count.foreachRDD(lambda rdd: rdd.foreachPartition(save_to_mongo))
 
     ssc.start()
     ssc.awaitTermination()
