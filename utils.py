@@ -13,6 +13,7 @@ def copy(src, dest):
             shutil.copy(src, dest)
         else:
             print('Directory not copied. Error: %s' % e)
+            raise
 
 
 def save_to_mongo(rdd, database, collection):

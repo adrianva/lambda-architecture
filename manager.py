@@ -15,5 +15,7 @@ if __name__ == "__main__":
     batch.start()
     stream.start()
 
-    if not batch.isAlive():
-        batch.start()
+    while True:
+        if not batch.is_alive:
+            print "Starting batch process..."
+            batch.start()

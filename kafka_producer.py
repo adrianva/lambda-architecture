@@ -31,4 +31,4 @@ if __name__ == "__main__":
         oauth_token='21989305-riNmaa2Z9baFFs1quWhpGbMNJKhFEhFTiSOklIidw',
         oauth_token_secret='NJdcXi3EPCvishtiNt9P1LTmlt1elKVhiQa4cGX0X7QWD'
     )
-    stream.statuses.filter(track='formula 1', language='en')
+    stream.statuses.filter(track='#f1', language='en')

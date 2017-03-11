@@ -69,7 +69,11 @@ def save_to_mongo(iter):
     db = client.kschool
 
     for record in iter:
-        saved_word = db.rt_view1.insert_one({"word": record[0], "count": 1})
+        saved_word = db.rt_view1.replace_one(
+            {"word": record[0]},
+            {"word": record[0], "count": record[1]},
+            upsert=True
+        )
 
 
 if __name__ == "__main__":

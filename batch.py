@@ -22,11 +22,15 @@ def get_word_count(texts):
 
 
 def batch_processing(sc):
-    utils.copy("HDFS/new", "HDFS/master")
+    try:
+        utils.copy("HDFS/new/", "HDFS/master/")
 
-    texts = sc.textFile("HDFS/master/*/*")
-    word_count = get_word_count(texts)
-    utils.save_to_mongo(word_count, database="kschool", collection="batch_view")
+        texts = sc.textFile("HDFS/master/*/*")
+        if texts:
+            word_count = get_word_count(texts)
+            utils.save_to_mongo(word_count, database="kschool", collection="batch_view")
+    except OSError:
+        print "New directory is empty..."
 
 
 if __name__ == "__main__":
