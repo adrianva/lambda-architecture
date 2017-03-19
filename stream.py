@@ -56,14 +56,6 @@ def word_tokenize(line):
     return nltk.word_tokenize(line)
 
 
-def save_words(time, rdd):
-    print("========= %s =========" % str(time))
-    try:
-        rdd.map(lambda word: save_to_mongo(word[0]))
-    except BaseException:
-        print sys.exc_info()
-
-
 def save_to_mongo(iter):
     client = MongoClient('mongodb://localhost:27017/')
     db = client.kschool
